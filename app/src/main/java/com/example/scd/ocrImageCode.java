@@ -1,12 +1,18 @@
 package com.example.scd;
 
+import android.content.ContentResolver;
+import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Log;
 import android.util.SparseArray;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -21,6 +27,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -35,80 +42,97 @@ public class ocrImageCode   {
 
     private static final String LOG_TAG = "Text API";
 
-    private Uri imageUri;
+    public  Uri imageUri;
     private TextRecognizer detector;
-    private static final int REQUEST_WRITE_PERMISSION = 20;
-    private static final String SAVED_INSTANCE_URI = "uri";
-    private static final String SAVED_INSTANCE_RESULT = "result";
-    static final int REQUEST_IMAGE_CAPTURE = 2;
-    static final int REQUEST_TAKE_PHOTO = 1;
-    private String mCurrentPhotoPath;
+    public  static String mCurrentPhotoPath;
 
     public ocrImageCode (Context context) {
         this.mContext = context;
 
-
-
     }
 
+    public File takePicture(Intent takePictureIntent) {
+
+        // takePictureIntent = new Intent( MediaStore.ACTION_IMAGE_CAPTURE);
+        File photoFile = null;
+        if (takePictureIntent.resolveActivity(mContext.getPackageManager()) != null) {
+            // Create the File where the photo should go
+            try {
+                photoFile = createImageFile();
+                Toast.makeText(mContext, "path " + photoFile.getAbsolutePath(), Toast.LENGTH_SHORT)
+                        .show();
 
 
-    String des ="";
-    public String onActivityResult(int requestCode, int resultCode, final Intent data , final ImageView imageview ) {
+            } catch (IOException ex) {
+                // Error occurred while creating the File
+                Toast.makeText(mContext, "Failed to create Image", Toast.LENGTH_SHORT)
+                        .show();
 
-        try {
-            //Toast.makeText(v.getContext(), "requestCode=" +requestCode + "  resultCode=" + resultCode, Toast.LENGTH_LONG).show();
-
-            if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK ) {
-                // Show the thumbnail on ImageView
-                imageUri = Uri.parse(mCurrentPhotoPath);
-
-                File file = new File(imageUri.getPath());
-                try {
-                    InputStream ims = new FileInputStream(file);
-                    imageview.setImageBitmap( BitmapFactory.decodeStream(ims));
-                } catch (FileNotFoundException e) {
-
-                }
-
-                // ScanFile so it will be appeared on Gallery
-                MediaScannerConnection.scanFile(mContext,
-                        new String[]{imageUri.getPath()}, null,
-                        new MediaScannerConnection.OnScanCompletedListener() {
-                            public void onScanCompleted(String path, Uri uri) {
-                                des=launchMediaScanIntent(data ,imageview) ;
-                            }
-                        });
             }
-
-            else if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK)
-            {
-               des=launchMediaScanIntent(data ,imageview) ;
-            }
-        } catch (Exception e) {
-            Toast.makeText(mContext, "Failed to load", Toast.LENGTH_SHORT)
-                    .show();
-            //   Log.e(LOG_TAG, e.toString());
         }
 
-        return des ;
+        return photoFile ;
     }
 
-    private String launchMediaScanIntent(Intent data ,ImageView imageview) {
+
+    /*
+ soluation in the link
+ https://stackoverflow.com/questions/42516126/fileprovider-illegalargumentexception-failed-to-find-configured-root
+     UPDATE 2020 MAR 13
+
+     Provider path for a specific path as followings:
+
+     <files-path/> --> Context.getFilesDir()
+     <cache-path/> --> Context.getCacheDir()
+     <external-path/> --> Environment.getExternalStorageDirectory()
+     <external-files-path/> --> Context.getExternalFilesDir(String)
+     <external-cache-path/> --> Context.getExternalCacheDir()
+     <external-media-path/> --> Context.getExternalMediaDirs()
+     Ref: https://developer.android.com/reference/androidx/core/content/FileProvider
+ */
+
+    public File createImageFile() throws IOException {
+        // Create an image file name
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        //   File storageDir = mContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        //  File storageDir = mContext.getExternalFilesDir(Environment.DIRECTORY_DCIM);
+
+        File storageDir = new File(Environment
+                .getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM) + "/Camera/");
+        if (!storageDir.exists())
+            storageDir.mkdirs();
+
+
+        File image = File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
+        );
+
+
+        // Save a file: path for use with ACTION_VIEW intents
+        mCurrentPhotoPath = image.getAbsolutePath();
+        return image;
+    }
+
+
+
+
+    public String launchMediaScanIntent(Intent data , ImageView imageview ) {
         String blocks = "";
         String lines = "";
         String words = "";
         try {
 
             Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+            imageUri = data.getData() ;
             mediaScanIntent.setData(imageUri);
             mContext.sendBroadcast(mediaScanIntent);
 
-            imageUri = data.getData();
-
-            Bitmap bitmap = decodeBitmapUri(mContext, imageUri , imageview);
-
+            Bitmap bitmap = decodeBitmapUri( mContext, imageUri , imageview );
             imageview.setImageBitmap(bitmap);
+
             detector = new TextRecognizer.Builder(mContext).build();
 
             if (detector.isOperational() && bitmap != null) {
@@ -168,7 +192,7 @@ public class ocrImageCode   {
             }
         } catch (Exception e) {
             Toast.makeText(mContext, "Failed to load Image", Toast.LENGTH_SHORT).show();
-            //   Log.e(LOG_TAG, e.toString());
+             Log.e(LOG_TAG, e.toString());
         }
 
 
@@ -177,13 +201,13 @@ public class ocrImageCode   {
     }
 
 
-    private Bitmap decodeBitmapUri(Context ctx, Uri uri ,ImageView imageview) throws FileNotFoundException
+    public Bitmap decodeBitmapUri(Context ctx, Uri uri ,ImageView imageview) throws FileNotFoundException
     {
         // int targetW = 600;
         // int targetH = 600;
         // Get the dimensions of the View
-        int targetW = imageview.getWidth() /2 ;
-        int targetH = imageview.getHeight() /2 ;
+        int targetW = imageview.getWidth()  ;
+        int targetH = imageview.getHeight() ;
 
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();
         bmOptions.inJustDecodeBounds = true;
@@ -191,7 +215,10 @@ public class ocrImageCode   {
         int photoW = bmOptions.outWidth;
         int photoH = bmOptions.outHeight;
 
-        int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
+      //  int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
+        // Determine how much to scale down the image
+        int scaleFactor = Math.max(1, Math.min(photoW/targetW, photoH/targetH));
+
         bmOptions.inJustDecodeBounds = false;
         bmOptions.inSampleSize = scaleFactor;
         bmOptions.inPurgeable = true;
@@ -201,43 +228,59 @@ public class ocrImageCode   {
 
 
 
-    public File takePicture(Intent takePictureIntent) {
 
-       // takePictureIntent = new Intent( MediaStore.ACTION_IMAGE_CAPTURE);
-        File photoFile = null;
-        if (takePictureIntent.resolveActivity(mContext.getPackageManager()) != null) {
-            // Create the File where the photo should go
 
-            try {
-                photoFile = createImageFile();
-            } catch (IOException ex) {
-                // Error occurred while creating the File
-                Toast.makeText(mContext, "Failed to create Image", Toast.LENGTH_SHORT)
-                        .show();
 
+    public static final String insertImage(ContentResolver cr,
+                                           Bitmap source,
+                                           String title,
+                                           String description) {
+
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.TITLE, title);
+        values.put(MediaStore.Images.Media.DISPLAY_NAME, title);
+        values.put(MediaStore.Images.Media.DESCRIPTION, description);
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        // Add the date meta data to ensure the image is added at the front of the gallery
+        values.put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000);
+        values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
+
+        Uri url = null;
+        String stringUrl = null;    /* value to be returned */
+
+        try {
+            url = cr.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+
+            if (source != null) {
+                OutputStream imageOut = cr.openOutputStream(url);
+                try {
+                    source.compress(Bitmap.CompressFormat.JPEG, 50, imageOut);
+                } finally {
+                    imageOut.close();
+                }
+
+                long id = ContentUris.parseId(url);
+                // Wait until MINI_KIND thumbnail is generated.
+                Bitmap miniThumb = MediaStore.Images.Thumbnails.getThumbnail(cr, id, MediaStore.Images.Thumbnails.MINI_KIND, null);
+                // This is for backward compatibility.
+             //   storeThumbnail(cr, miniThumb, id, 50F, 50F,Images.Thumbnails.MICRO_KIND);
+            } else {
+                cr.delete(url, null, null);
+                url = null;
             }
+        } catch (Exception e) {
+            if (url != null) {
+                cr.delete(url, null, null);
+                url = null;
             }
+        }
 
-        return photoFile ;
+        if (url != null) {
+            stringUrl = url.toString();
+        }
+
+        return stringUrl;
     }
-
-    public File createImageFile() throws IOException {
-        // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = mContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        //File storageDir = getExternalFilesDir(Environment.DIRECTORY_DCIM);
-        File image = File.createTempFile(
-                imageFileName,  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
-        );
-
-        // Save a file: path for use with ACTION_VIEW intents
-        mCurrentPhotoPath = image.getAbsolutePath();
-        return image;
-    }
-
 
 
 

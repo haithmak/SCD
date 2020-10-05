@@ -4,19 +4,16 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <SurfaceView
-        android:id="@+id/surfaceView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="4" />
+
     <ImageView
         android:id="@+id/image_view"
         android:scaleType="centerCrop"
-        android:layout_width="400dp"
-        android:layout_height="400dp" />
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+         />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -36,17 +33,32 @@
         />
 
     </LinearLayout>
-    <TextView
-        android:id="@+id/text_view"
+
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_margin="8dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:textStyle="bold"
-        android:text="@string/txt_message"
-        android:textColor="@android:color/black"
-        android:textSize="20sp" />
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_weight="2"
+        android:layoutDirection="ltr"
+        >
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layoutDirection="ltr">
+            <TextView
+                android:id="@+id/text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="left"
+                android:textStyle="bold"
+                android:text="@string/txt_message"
+                android:textColor="@android:color/black"
+                android:scrollbars="horizontal"
+                />
+        </LinearLayout>
+    </ScrollView>
+
+
 
 </LinearLayout>
