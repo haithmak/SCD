@@ -3,6 +3,7 @@ package com.example.scd;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -34,6 +35,7 @@ import com.google.android.gms.vision.text.TextBlock;
 import com.google.android.gms.vision.text.TextRecognizer;
 
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -71,10 +73,12 @@ public class MainActivity extends AppCompatActivity {
         imageview = findViewById(R.id.image_view);
 
         de=new ocrImageCode( this );
-
+        Log.e("main", "onCreate");
         if (savedInstanceState != null) {
+
             imageUri = Uri.parse(savedInstanceState.getString(SAVED_INSTANCE_URI));
-             mTextView.setText(savedInstanceState.getString(SAVED_INSTANCE_RESULT));
+            mTextView.setText(savedInstanceState.getString(SAVED_INSTANCE_RESULT));
+            Log.e("main", "savedInstanceState = " + imageUri.getPath() );
         }
         mGallary.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -130,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                     return;
                 }
-                openCamera();
+               // openCamera();
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -139,6 +143,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    private void openCameraa() {
+        Uri image_uri;
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.TITLE, "New Picture");
+        values.put(MediaStore.Images.Media.DESCRIPTION, "From the Camera");
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        // Add the date meta data to ensure the image is added at the front of the gallery
+        values.put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000);
+        values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
+
+        image_uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        //Camera intent
+        Log.e("Main imageUri" , image_uri.toString()) ;
+        Toast.makeText(this, image_uri.toString() , Toast.LENGTH_LONG).show();
+        Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, image_uri);
+        startActivityForResult(cameraIntent, REQUEST_TAKE_PHOTO);
+    }
 
 
     private void openCamera(){
@@ -154,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
 
                 Log.e("Main imageUri" , imageUri.toString()) ;
                 //  imageUri = de.imageUri ;
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+               // takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
                 startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO);
             }
         } catch (Exception e) {
@@ -172,72 +194,108 @@ public class MainActivity extends AppCompatActivity {
 
     String des ="" ;
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode,final Intent data) {
         //called when image was captured from camera
-
+        super.onActivityResult(requestCode, resultCode, data);
+        Bundle bundle = data.getExtras() ;
         try {
-            //Toast.makeText(v.getContext(), "requestCode=" +requestCode + "  resultCode=" + resultCode, Toast.LENGTH_LONG).show();
 
             if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK ) {
-                // Show the thumbnail on ImageView
-                Bitmap imageBitmap = (Bitmap) data.getExtras().get("data");
-                imageview.setImageBitmap(imageBitmap);
-                imageUri = Uri.parse(ocrImageCode.mCurrentPhotoPath);
 
-                File file = new File( imageUri.getPath() );
-                try {
-                    InputStream ims = new FileInputStream(file);
-                  //  imageview.setImageBitmap(BitmapFactory.decodeStream(ims));
-                 //   imageview.setImageBitmap(imageBitmap);
-                   // imageview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                //from bundle, extract the image
 
-                    // ScanFile so it will be appeared on Gallery
-                    MediaScannerConnection.scanFile(this,
-                            new String[]{imageUri.getPath()}, null,
-                            new MediaScannerConnection.OnScanCompletedListener() {
-                                public void onScanCompleted(String path, Uri uri) {
-                                    des=de.launchMediaScanIntent(data ,imageview ) ;
-
-                                    mTextView.setText(des);
-                                }
+                Bitmap bitmap = (Bitmap) bundle.get("data");
+                imageview.setImageBitmap(bitmap);
 
 
-                            });
-
-                } catch (FileNotFoundException e) {
-                    Log.e("ocr imageUri" , e.toString()) ;
-                }
-
-
-
+                des=de.getOcrText(MainActivity.this ,bitmap) ;
+                mTextView.setText(des);
             }
 
             else if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK)
             {
-                des=de.launchMediaScanIntent(data ,imageview ) ;
+                Uri imUri = (Uri) data.getData();
 
+                Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                mediaScanIntent.setData(imUri);
+                this.sendBroadcast(mediaScanIntent);
+
+                Bitmap bitmap = de.decodeBitmapUri( this, imUri , imageview );
+                imageview.setImageBitmap(bitmap);
+
+                des=de.getOcrText(this ,bitmap) ;
+                mTextView.setText(des);
                 Toast.makeText(this, des , Toast.LENGTH_LONG).show();
             }
 
-            imageview.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            mTextView.setText(des);
-         //   Toast.makeText(this, des , Toast.LENGTH_LONG).show();
+
+
+            //   Toast.makeText(this, des , Toast.LENGTH_LONG).show();
 
 
         } catch (Exception e) {
             Toast.makeText(this, "Failed to load", Toast.LENGTH_SHORT)
                     .show();
-               Log.e("main", e.toString());
+            Log.e("main", e.toString());
         }
-        super.onActivityResult(requestCode, resultCode, data);
+
     }
+
 
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
         if (imageUri != null) {
             outState.putString(SAVED_INSTANCE_URI, imageUri.toString());
             outState.putString(SAVED_INSTANCE_RESULT, mTextView.getText().toString());
+            Log.e("main", "onSaveInstanceState" +imageUri.toString() );
         }
-        super.onSaveInstanceState(outState);
+
+
+    }
+
+
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        if (savedInstanceState != null) {
+
+            imageUri = Uri.parse(savedInstanceState.getString(SAVED_INSTANCE_URI));
+            mTextView.setText(savedInstanceState.getString(SAVED_INSTANCE_RESULT));
+            Log.e("main", "savedInstanceState = " + imageUri.getPath() );
+        }
+        Log.e("main", "onRestoreInstanceState");
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.e("main", "onDestroy");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.e("main", "onPause");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.e("main", "onResume");
+    }
+
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.e("main", "onStart");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.e("main", "onStop");
     }
 }

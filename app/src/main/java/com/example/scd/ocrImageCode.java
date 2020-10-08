@@ -110,6 +110,8 @@ public class ocrImageCode   {
                 storageDir      /* directory */
         );
 
+        imageUri = Uri.fromFile(image);
+
 
         // Save a file: path for use with ACTION_VIEW intents
         mCurrentPhotoPath = image.getAbsolutePath();
@@ -119,58 +121,52 @@ public class ocrImageCode   {
 
 
 
-    public String launchMediaScanIntent(Intent data , ImageView imageview ) {
+
+
+
+    public String getOcrText(Context mContext ,Bitmap bitmap){
         String blocks = "";
         String lines = "";
         String words = "";
-        try {
 
-            Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-            imageUri = data.getData() ;
-            mediaScanIntent.setData(imageUri);
-            mContext.sendBroadcast(mediaScanIntent);
+        detector = new TextRecognizer.Builder(mContext).build();
 
-            Bitmap bitmap = decodeBitmapUri( mContext, imageUri , imageview );
-            imageview.setImageBitmap(bitmap);
-
-            detector = new TextRecognizer.Builder(mContext).build();
-
-            if (detector.isOperational() && bitmap != null) {
-                Frame frame = new Frame.Builder().setBitmap(bitmap).build();
-                SparseArray<TextBlock> textBlocks = detector.detect(frame);
-                 blocks = "";
-                 lines = "";
-                 words = "";
+        if (detector.isOperational() && (bitmap != null  )) {
+            Frame frame = new Frame.Builder().setBitmap(bitmap).build();
+            SparseArray<TextBlock> textBlocks = detector.detect(frame);
+            blocks = "";
+            lines = "";
+            words = "";
 
 
-                for (int index = 0; index < textBlocks.size(); index++) {
-                    //extract scanned text blocks here
-                    TextBlock tBlock = textBlocks.valueAt(index);
-                    blocks = blocks + tBlock.getValue() + "\n" + "\n";
-                    for (Text line : tBlock.getComponents()) {
-                        //extract scanned text lines here
-                        lines = lines + line.getValue() + "\n";
+            for (int index = 0; index < textBlocks.size(); index++) {
+                //extract scanned text blocks here
+                TextBlock tBlock = textBlocks.valueAt(index);
+                blocks = blocks + tBlock.getValue() + "\n" + "\n";
+                for (Text line : tBlock.getComponents()) {
+                    //extract scanned text lines here
+                    lines = lines + line.getValue() + "\n";
 
-                        for (Text element : line.getComponents()) {
-                            //extract scanned text words here
-                            words = words + element.getValue() + ",";
+                    for (Text element : line.getComponents()) {
+                        //extract scanned text words here
+                        words = words + element.getValue() + ",";
 
 
 
-                        }
                     }
                 }
+            }
 
 
-                if (textBlocks.size() == 0 )
-                {
-                    //   scanResults.setText("Scan Failed: Found nothing to scan");
+            if (textBlocks.size() == 0 )
+            {
+                //   scanResults.setText("Scan Failed: Found nothing to scan");
 
-                    Toast.makeText(mContext, "Scan Failed: Found nothing to Decode", Toast.LENGTH_LONG).show();
-                }
-                else
-                {
-             //       Toast.makeText(mContext, lines, Toast.LENGTH_LONG).show();
+                Toast.makeText(mContext, "Scan Failed: Found nothing to Decode", Toast.LENGTH_LONG).show();
+            }
+            else
+            {
+                //       Toast.makeText(mContext, lines, Toast.LENGTH_LONG).show();
                                        /*
                     scanResults.setText(scanResults.getText() + "Blocks: " + "\n");
                     scanResults.setText(scanResults.getText() + blocks + "\n");
@@ -183,20 +179,14 @@ public class ocrImageCode   {
                     scanResults.setText(scanResults.getText() + "---------" + "\n");
                         */
 
-                }
             }
-            else {
-                Toast.makeText(mContext, "Could not set up the detector!", Toast.LENGTH_LONG)
-                        .show();
-                //  scanResults.setText("Could not set up the detector!");
-            }
-        } catch (Exception e) {
-            Toast.makeText(mContext, "Failed to load Image", Toast.LENGTH_SHORT).show();
-             Log.e(LOG_TAG, e.toString());
         }
-
-
-        return words ;
+        else {
+            Toast.makeText(mContext, "Could not set up the detector!", Toast.LENGTH_LONG)
+                    .show();
+            //  scanResults.setText("Could not set up the detector!");
+        }
+        return  words ;
 
     }
 
@@ -207,7 +197,7 @@ public class ocrImageCode   {
         // int targetH = 600;
         // Get the dimensions of the View
         int targetW = imageview.getWidth()  ;
-        int targetH = imageview.getHeight() ;
+        int targetH = imageview.getHeight()  ;
 
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();
         bmOptions.inJustDecodeBounds = true;
@@ -215,17 +205,12 @@ public class ocrImageCode   {
         int photoW = bmOptions.outWidth;
         int photoH = bmOptions.outHeight;
 
-      //  int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
-        // Determine how much to scale down the image
-        int scaleFactor = Math.max(1, Math.min(photoW/targetW, photoH/targetH));
-
+        int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
         bmOptions.inJustDecodeBounds = false;
         bmOptions.inSampleSize = scaleFactor;
         bmOptions.inPurgeable = true;
-
         return BitmapFactory.decodeStream(ctx.getContentResolver().openInputStream(uri), null, bmOptions);
     }
-
 
 
 
